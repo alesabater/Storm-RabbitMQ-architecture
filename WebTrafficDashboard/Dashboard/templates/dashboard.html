@@ -1,0 +1,454 @@
+{% extends "index.html" %}
+{% block content %}
+
+<div id="tooltip" class="hidden">
+	<p><strong>Name</strong></p>
+	<p><span id="value">100</span></p>
+</div>
+
+<!-- SOCKET -->
+<script>
+// Stomp.js boilerplate
+var ws = new SockJS('http://127.0.0.1:15674/stomp');
+//alert('http://' + window.location.hostname + '127.0.0.1:15674/stomp');
+var client = Stomp.over(ws);
+
+// SockJS does not support heart-beat: disable heart-beats
+client.heartbeat.outgoing = 0;
+client.heartbeat.incoming = 0;
+
+var on_connect = function(x) {
+    id = client.subscribe("/topic/test", function(d) {
+       var a = JSON.parse(d.body)
+       graficar(a);
+    });
+};
+var on_error =  function() {
+  console.log('error');
+};
+client.connect('guest', 'guest', on_connect, on_error, '/');
+
+</script>
+
+<script type="text/javascript">
+
+    //Width and height
+    var w = 960;
+    var h = 500;
+    var padding = 50;
+      
+    var now = d3.time.minute.utc(new Date);
+
+    var dataset = [
+		    		[
+		    			{"protocolo":"UDP", y: 5, x: d3.time.second.utc.offset(now, -30)},
+			    		{"protocolo":"UDP", y: 1, x: d3.time.second.utc.offset(now, -10)},
+			    		{"protocolo":"UDP", y: 2, x: now}
+		    		],
+		    		[	
+		    			{"protocolo":"TCP", y: 7, x: d3.time.second.utc.offset(now, -30)},
+			    		{"protocolo":"TCP", y: 2, x: d3.time.second.utc.offset(now, -15)},
+			    		{"protocolo":"TCP", y: 5, x: now}
+		    		]
+
+		    	];
+
+    var color_hash = {  0 : ["UDP", "green"],
+					    1 : ["TCP", "orange"]
+					  }                      
+    
+    // Define axis ranges & scales        
+    var yExtents = d3.extent(d3.merge(dataset), function (d) { return d.y; });
+    var xExtents = d3.extent(d3.merge(dataset), function (d) { return d.x; });
+         
+	var xScale = d3.time.scale()
+	       .domain([xExtents[0], xExtents[1]])
+	       .range([padding, w - padding * 2]);
+
+	var yScale = d3.scale.linear()
+	       .domain([0, yExtents[1]])
+	       .range([h - padding, padding]);
+
+
+	// Create SVG element
+	var svg = d3.select(".jumbotron")
+	    .append("svg")
+	    .attr("width", w)
+	    .attr("height", h);
+
+
+	// Define lines
+	var line = d3.svg.line()
+	       .x(function(d) { return x(d.x); })
+	       .y(function(d) { return y(d.y1, d.y2, d.y3); });
+
+	var pathContainers = svg.selectAll('g.line')
+		.data(dataset);
+
+	pathContainers.enter().append('g')
+	.attr('class', 'line')
+	.attr("style", function(d) {
+		return "stroke: " + color_hash[dataset.indexOf(d)][1]; 
+	});
+
+	pathContainers.selectAll('path')
+	.data(function (d) { return [d]; }) // continues the data from the pathContainer
+	.enter().append('path')
+	  .attr('d', d3.svg.line()
+	    .x(function (d) { return xScale(d.x); })
+	    .y(function (d) { return yScale(d.y); })
+	  );
+
+	// add circles
+	pathContainers.selectAll('circle')
+		.data(function (d) { return d; })
+		.enter().append('circle')
+		.attr('cx', function (d) { return xScale(d.x); })
+		.attr('cy', function (d) { return yScale(d.y); })
+		.attr('r', 3); 
+	  
+   	//Define X axis
+	var xAxis = d3.svg.axis()
+	        .scale(xScale)
+	        .orient("bottom")
+	        .ticks(5);
+
+	//Define Y axis
+	var yAxis = d3.svg.axis()
+	        .scale(yScale)
+	        .orient("left")
+	        .ticks(5);
+
+	//Add X axis
+	svg.append("g")
+		.attr("class", "x axis")
+		.attr("transform", "translate(0," + (h - padding) + ")")
+		.call(xAxis);
+
+	//Add Y axis
+	svg.append("g")
+		.attr("class", "y axis")
+		.attr("transform", "translate(" + padding + ",0)")
+		.call(yAxis);
+
+	// Add title	  
+	svg.append("svg:text")
+		   .attr("class", "title")
+		   .attr("x", 20)
+		   .attr("y", 20)
+		   .text("Paquetes por segundo");
+
+
+	// add legend   
+	var legend = svg.append("g")
+	  .attr("class", "legend")
+	  .attr("x", w - 65)
+	  .attr("y", 25)
+	  .attr("height", 100)
+	  .attr("width", 100);
+
+	legend.selectAll('g').data(dataset)
+      .enter()
+      .append('g')
+      .each(function(d, i) {
+        var g = d3.select(this);
+        g.append("rect")
+          .attr("x", w - 65)
+          .attr("y", i*25)
+          .attr("width", 10)
+          .attr("height", 10)
+          .style("fill", color_hash[String(i)][1]);
+        
+        g.append("text")
+          .attr("x", w - 50)
+          .attr("y", i * 25 + 8)
+          .attr("height",30)
+          .attr("width",100)
+          .style("fill", color_hash[String(i)][1])
+          .text(color_hash[String(i)][0]);
+
+      });
+
+	
+	
+	   //On click, update with new data			
+function graficar(data) {
+	
+	data[0].x = d3.time.second.utc(new Date);
+	data[0].y = data[0].cuenta
+
+	console.log(data)
+
+	
+	//console.log(data.protocolo);
+	if (data[0].protocolo == "UDP"){
+		data[0].y = (data[0].cuenta)*20;
+		dataset[0].push(data[0]);
+	}else if (data[0].protocolo == "TCP"){
+		dataset[1].push(data[0]);
+	}
+	yExtents = d3.extent(d3.merge(dataset), function (d) { return d.y; });
+    xExtents = d3.extent(d3.merge(dataset), function (d) { return d.x; });
+         
+	xScale.domain([xExtents[0], xExtents[1]]);	      
+	yScale.domain([0, yExtents[1]]);
+	
+	//y.domain([0, d3.max(dataset, function(d) { return d.cuenta;	})]);
+	
+	//Update X axis
+	svg.select(".x.axis")
+		.transition()
+		.duration(1000)
+		.call(xAxis);
+		
+	//Update Y axis
+	svg.select(".y.axis")
+		.transition()
+		.duration(1000)
+		.call(yAxis);
+	
+	pathContainers.data(dataset);
+	
+	pathContainers.selectAll('path')
+	.data(function (d) { return [d]; }) // continues the data from the pathContainer
+	//.enter().append('path')
+	  .attr('d', d3.svg.line()
+	    .x(function (d) { return xScale(d.x); })
+	    .y(function (d) { return yScale(d.y); })
+	  );
+
+	// add circles
+	pathContainers.selectAll('circle')
+		.data(function (d) { return d; })
+		//.enter()
+		//.append('circle')
+		.attr('cx', function (d) { return xScale(d.x); })
+		.attr('cy', function (d) { return yScale(d.y); })
+		.attr('r', 3); 
+	/*/Update all rects
+	svg.selectAll("rect")
+	   .data(dataset)
+	   .transition()
+	   .attr("y", function(d) {
+	   		return height - yScale(d.cuenta);
+	   })
+	   .attr("height", function(d) {
+	   		return yScale(d.cuenta);
+	   })
+	   .attr("fill", function(d) {
+			return "rgb(0, 0, " + (d.cuenta * 10) + ")";
+	   });
+
+	//Update all labels
+	svg.selectAll("text")
+	   .data(dataset)
+	   .text(function(d) {
+	   		return d.cantidad;
+	   })
+	   .attr("x", function(d, i) {
+	   		return xScale(i) + xScale.rangeBand() / 2;
+	   })
+	   .attr("y", function(d) {
+	   		return height - yScale(d.cuenta) + 14;
+	   });//*/	 				
+	};
+</script>
+
+    <style type="text/css">
+			body {
+			  padding-top: 20px;
+			  padding-bottom: 60px;
+			}
+			.jumbotron {
+				background: white;
+				padding-top: 50px;
+			}
+			/*
+			rect:hover {
+					fill: orange;
+			}
+			
+			#tooltip {
+				position: absolute;
+				width: 200px;
+				height: auto;
+				padding: 10px;
+				background-color: white;
+				-webkit-border-radius: 10px;
+				-moz-border-radius: 10px;
+				border-radius: 10px;
+				-webkit-box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.4);
+				-moz-box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.4);
+				box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.4);
+				pointer-events: none;
+			}
+			
+			#tooltip.hidden {
+				display: none;
+			}
+			
+			#tooltip p {
+				margin: 0;
+				font-family: sans-serif;
+				font-size: 16px;
+				line-height: 20px;
+			}*/
+			/* Custom container 
+			.container {
+			  margin: 0 auto;
+			  max-width: 1000px;
+			}
+			.container > hr {
+			  margin: 60px 0;
+			}*/
+			
+			/* Main marketing message and sign up button */
+			.jumbotron {
+			  margin: 80px 0;
+			  text-align: center;
+			}
+			.jumbotron h1 {
+			  font-size: 100px;
+			  line-height: 1;
+			}
+			.jumbotron .lead {
+			  font-size: 24px;
+			  line-height: 1.25;
+			}
+			.jumbotron .btn {
+			  font-size: 21px;
+			  padding: 14px 24px;
+			}
+			
+			/* Supporting marketing content 
+			.marketing {
+			  margin: 60px 0;
+			}
+			.marketing p + h4 {
+			  margin-top: 28px;
+			}
+			*/
+			
+			/* Customize the navbar links to be fill the entire space of the .navbar 
+			.navbar .navbar-inner {
+			  padding: 0;
+			}
+			.navbar .nav {
+			  margin: 0;
+			  display: table;
+			  width: 100%;
+			}
+			.navbar .nav li {
+			  display: table-cell;
+			  width: 1%;
+			  float: none;
+			}
+			.navbar .nav li a {
+			  font-weight: bold;
+			  text-align: center;
+			  border-left: 1px solid rgba(255,255,255,.75);
+			  border-right: 1px solid rgba(0,0,0,.1);
+			}
+			.navbar .nav li:first-child a {
+			  border-left: 0;
+			  border-radius: 3px 0 0 3px;
+			}
+			.navbar .nav li:last-child a {
+			  border-right: 0;
+			  border-radius: 0 3px 3px 0;
+			}
+			.box {
+			    width: 440px;
+			    float: left;
+			    margin: 0 20px 0 20px;
+			}
+			.box div, .box input {
+			     border: 1px solid;
+			     -moz-border-radius: 4px;
+			     border-radius: 4px;
+			     width: 100%;
+			     padding: 5px;
+			     margin: 3px 0 10px 0;
+			}
+			.box div {
+			     border-color: grey;
+			     height: 300px;
+			     overflow: auto;
+			 }
+			
+			 div code {
+			     display: block;
+			 }
+			
+			 #first div code {
+			     -moz-border-radius: 2px;
+			     border-radius: 2px;
+			     border: 1px solid #eee;
+			     margin-bottom: 5px;
+			 }
+			
+			 #second div {
+			     font-size: 0.8em;
+			 }
+			 */
+			.axis path,
+			.axis line {
+				fill: none;
+				stroke: black;
+				shape-rendering: crispEdges;
+			}
+			
+			.axis text {
+				font-family: sans-serif;
+				font-size: 11px;
+			}
+			
+			.y1 {
+				fill: white;
+				stroke: orange;
+				stroke-width: 1.5px;
+			}
+			
+			.y2 {
+				fill: white;
+				stroke: red;
+				stroke-width: 1.5px;
+			}
+			
+			.y3 {
+				fill: white;
+				stroke: steelblue;
+				stroke-width: 1.5px;
+			}
+			
+			.line {
+			  fill: none;
+			  stroke-width: 1.5px;
+			}
+			
+			div.tooltip {
+			 position: absolute;
+			 text-align: center;
+			 width: 50px;
+			 height: 10px;
+			 padding: 5px;
+			 font: 10px sans-serif;
+			 background: whiteSmoke;
+			 border: solid 1px #aaa;
+			 pointer-events: none;
+			 box-shadow: 2px 2px 1px #888;
+			}
+			
+			.legend {
+			 padding: 5px;
+			 font: 10px sans-serif;
+			 background: yellow;
+			 box-shadow: 2px 2px 1px #888;
+			}
+			
+			.title {
+				font: 13px sans-serif;
+			}
+    </style>
+
+{% endblock %}
